@@ -60,13 +60,44 @@ def start_feedback(chat_id):
     keyboard = create_keyboard(options)
     bot.send_message(chat_id, "Выберите категорию для отзыва:", reply_markup=keyboard)
 
+def handle_store_selection(chat_id):
+    keyboard = create_keyboard(CONFIG["stores"])
+    bot.send_message(chat_id, "Выберите магазин:", reply_markup=keyboard)
+
+def ask_for_custom_store(chat_id):
+    bot.send_message(
+        chat_id,
+        "Введите название магазина:",
+        reply_markup=types.ReplyKeyboardRemove()
+    )
+    feedback_data["users"][str(chat_id)] = {"waiting_for_store": True}
+    save_data(feedback_data)
+
 @bot.message_handler(content_types=['text'])
 def handle_text(message):
     chat_id = message.chat.id
     text = message.text
+    user_id = str(chat_id)
+
+    if user_id not in feedback_data["users"]:
+        feedback_data["users"][user_id] = {}
 
     if text == "Оставить отзыв":
         start_feedback(chat_id)
+    elif text == "Магазин":
+        handle_store_selection(chat_id)
+    elif text in CONFIG["stores"]:
+        if text == "Другой магазин":
+            ask_for_custom_store(chat_id)
+        else:
+            feedback_data["users"][user_id]["current_feedback"] = {"store": text}
+            save_data(feedback_data)
+            ask_feedback_category(chat_id)
+    elif feedback_data["users"][user_id].get("waiting_for_store"):
+        feedback_data["users"][user_id]["current_feedback"] = {"store": text}
+        feedback_data["users"][user_id]["waiting_for_store"] = False
+        save_data(feedback_data)
+        ask_feedback_category(chat_id)
     else:
         bot.send_message(chat_id, "Используйте кнопки для навигации.")
 
