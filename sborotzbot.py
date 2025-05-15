@@ -95,6 +95,22 @@ def handle_category_selection(chat_id, category):
     else:
         ask_for_feedback_text(chat_id)
 
+def ask_for_custom_rating(chat_id):
+    bot.send_message(
+        chat_id,
+        "Введите свою оценку:",
+        reply_markup=types.ReplyKeyboardRemove()
+    )
+    feedback_data["users"][str(chat_id)]["waiting_for_rating"] = True
+    save_data(feedback_data)
+
+def handle_custom_rating(chat_id, rating):
+    user_data = feedback_data["users"][str(chat_id)]
+    user_data["current_feedback"]["rating"] = rating
+    user_data["waiting_for_rating"] = False
+    save_data(feedback_data)
+    ask_feedback_type(chat_id)
+
 @bot.message_handler(content_types=['text'])
 def handle_text(message):
     chat_id = message.chat.id
@@ -122,6 +138,15 @@ def handle_text(message):
         ask_feedback_category(chat_id)
     elif text in CONFIG["categories"]:
         handle_category_selection(chat_id, text)
+    elif any(text in options for options in CONFIG["categories"].values()):
+        if text == "Свой вариант":
+            ask_for_custom_rating(chat_id)
+        else:
+            feedback_data["users"][user_id]["current_feedback"]["rating"] = text
+            save_data(feedback_data)
+            ask_feedback_type(chat_id)
+    elif feedback_data["users"][user_id].get("waiting_for_rating"):
+        handle_custom_rating(chat_id, text)
     else:
         bot.send_message(chat_id, "Используйте кнопки для навигации.")
 
