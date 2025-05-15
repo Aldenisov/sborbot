@@ -10,7 +10,14 @@ CONFIG = {
     "welcome_message": "Добро пожаловать в бот для сбора отзывов о магазинах.",
     "start_button": "Начать",
     "thanks_message": "Спасибо за ваш отзыв!",
-    "stores": ["Магнит", "Пятерочка", "Перекресток", "Лента", "Другой магазин"]
+    "stores": ["Магнит", "Пятерочка", "Перекресток", "Лента", "Другой магазин"],
+    "categories": {
+        "Чистота": ["Отличная", "Хорошая", "Удовлетворительная", "Плохая"],
+        "Персонал": ["Вежливый", "Внимательный", "Нейтральный", "Грубый"],
+        "Цены": ["Низкие", "Средние", "Высокие"],
+        "Ассортимент": ["Широкий", "Средний", "Ограниченный"],
+        "Другое": []
+    }
 }
 
 bot = telebot.TeleBot("8073845003:AAEoS-6jRU6S9qecGHTLKQdSD28zmD6OmFU")
@@ -73,6 +80,21 @@ def ask_for_custom_store(chat_id):
     feedback_data["users"][str(chat_id)] = {"waiting_for_store": True}
     save_data(feedback_data)
 
+def ask_feedback_category(chat_id):
+    keyboard = create_keyboard(list(CONFIG["categories"].keys()))
+    bot.send_message(chat_id, "Выберите категорию отзыва:", reply_markup=keyboard)
+
+def handle_category_selection(chat_id, category):
+    user_data = feedback_data["users"][str(chat_id)]
+    user_data["current_feedback"]["category"] = category
+    
+    if CONFIG["categories"][category]:
+        options = CONFIG["categories"][category] + ["Свой вариант"]
+        keyboard = create_keyboard(options)
+        bot.send_message(chat_id, f"Выберите оценку для '{category}':", reply_markup=keyboard)
+    else:
+        ask_for_feedback_text(chat_id)
+
 @bot.message_handler(content_types=['text'])
 def handle_text(message):
     chat_id = message.chat.id
@@ -98,6 +120,8 @@ def handle_text(message):
         feedback_data["users"][user_id]["waiting_for_store"] = False
         save_data(feedback_data)
         ask_feedback_category(chat_id)
+    elif text in CONFIG["categories"]:
+        handle_category_selection(chat_id, text)
     else:
         bot.send_message(chat_id, "Используйте кнопки для навигации.")
 
