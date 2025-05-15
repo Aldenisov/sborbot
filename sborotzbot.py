@@ -17,7 +17,8 @@ CONFIG = {
         "Цены": ["Низкие", "Средние", "Высокие"],
         "Ассортимент": ["Широкий", "Средний", "Ограниченный"],
         "Другое": []
-    }
+    },
+    "feedback_types": ["Предложение", "Жалоба", "Благодарность"]
 }
 
 bot = telebot.TeleBot("8073845003:AAEoS-6jRU6S9qecGHTLKQdSD28zmD6OmFU")
@@ -111,6 +112,47 @@ def handle_custom_rating(chat_id, rating):
     save_data(feedback_data)
     ask_feedback_type(chat_id)
 
+def ask_feedback_type(chat_id):
+    keyboard = create_keyboard(CONFIG["feedback_types"])
+    bot.send_message(chat_id, "Выберите тип отзыва:", reply_markup=keyboard)
+
+def ask_for_feedback_text(chat_id):
+    bot.send_message(
+        chat_id,
+        "Напишите ваш отзыв:",
+        reply_markup=types.ReplyKeyboardRemove()
+    )
+    feedback_data["users"][str(chat_id)]["waiting_for_text"] = True
+    save_data(feedback_data)
+
+def complete_feedback(chat_id, text):
+    user_id = str(chat_id)
+    user_data = feedback_data["users"][user_id]
+
+    feedback = {
+        "user_id": user_id,
+        "timestamp": datetime.now().isoformat(),
+        **user_data["current_feedback"],
+        "text": text
+    }
+
+    feedback_data["feedbacks"].append(feedback)
+    if "feedbacks" not in user_data:
+        user_data["feedbacks"] = []
+    user_data["feedbacks"].append(feedback)
+
+    keys_to_remove = [
+        "current_feedback", "waiting_for_text",
+        "waiting_for_store", "waiting_for_rating"
+    ]
+    for key in keys_to_remove:
+        if key in user_data:
+            del user_data[key]
+
+    save_data(feedback_data)
+    bot.send_message(chat_id, CONFIG["thanks_message"])
+    show_main_menu(chat_id)
+
 @bot.message_handler(content_types=['text'])
 def handle_text(message):
     chat_id = message.chat.id
@@ -147,6 +189,12 @@ def handle_text(message):
             ask_feedback_type(chat_id)
     elif feedback_data["users"][user_id].get("waiting_for_rating"):
         handle_custom_rating(chat_id, text)
+    elif text in CONFIG["feedback_types"]:
+        feedback_data["users"][user_id]["current_feedback"]["feedback_type"] = text
+        save_data(feedback_data)
+        ask_for_feedback_text(chat_id)
+    elif feedback_data["users"][user_id].get("waiting_for_text"):
+        complete_feedback(chat_id, text)
     else:
         bot.send_message(chat_id, "Используйте кнопки для навигации.")
 
